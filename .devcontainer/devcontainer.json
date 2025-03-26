@@ -2,12 +2,18 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/cpp
 {
 	"name": "C++",
-	"dockerComposeFile": "../docker-compose.yml",
-	"service": "app"
+	"dockerComposeFile": "./docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspace",
 	// compose or build!
 	//"build": {
 	//	"dockerfile": "Dockerfile"
 	//}
+
+	"remoteEnv": {
+		// the original host directory which is needed for volume mount commands from inside the container (Docker in Docker)
+		"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+	}
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
