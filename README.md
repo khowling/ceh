@@ -5,7 +5,17 @@ https://github.com/Azure/azure-event-hubs-emulator-installer
 bash ./EventHub-Emulator/Scripts/Linux/LaunchEmulator.sh
 
 
+
 ## Run Sample
+
+### from devcontainer
+
+devcontainer Dockerfile installs dependencies `${VCPKG_ROOT}/vcpkg install azure-identity-cpp azure-c-shared-utility azure-uamqp-c`, so now to build:
+``` 
+mkdir cmake; cd cmake
+cmake -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake ..
+make
+```
 
 install build dependencies
 ```

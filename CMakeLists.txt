@@ -15,24 +15,28 @@ list(APPEND CMAKE_MODULE_PATH "/usr/local/cmake")
 # Find required packages - Azure IoT C SDK
 find_package(azure_c_shared_utility REQUIRED CONFIG)
 find_package(uamqp REQUIRED CONFIG)
-
+find_package(azure-identity-cpp CONFIG REQUIRED)
 
 # Add executable
 add_executable(ceh main.cpp eh_sender.c eh_receiver.c)
 
 
+target_link_libraries(ceh PRIVATE uamqp)
+target_link_libraries(ceh PRIVATE Azure::azure-identity)
+target_link_libraries(ceh PRIVATE aziotsharedutil)
+
 
 # Include directories
-target_include_directories(ceh PUBLIC
-    ${azure_c_shared_utility_INCLUDE_DIRS}
-    ${azure_uamqp_c_INCLUDE_DIRS}
-    /usr/local/include/azureiot
-)
+#target_include_directories(ceh PUBLIC
+#    ${azure_c_shared_utility_INCLUDE_DIRS}
+#    ${azure_uamqp_c_INCLUDE_DIRS}
+#    /usr/local/include/azureiot
+#)
 
 # Link libraries
-target_link_libraries(ceh
-    ${azure_c_shared_utility_LIBRARIES}
-    ${azure_uamqp_c_LIBRARIES}
-    aziotsharedutil
-    uamqp
-)
+#target_link_libraries(ceh
+#    ${azure_c_shared_utility_LIBRARIES}
+#    ${azure_uamqp_c_LIBRARIES}
+#    aziotsharedutil
+#    uamqp
+#)
