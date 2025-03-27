@@ -11,7 +11,6 @@
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/platform.h"
 #include "azure_c_shared_utility/strings.h"
-#include "azure_c_shared_utility/buffer_.h"
 #include "azure_c_shared_utility/azure_base64.h"
 #include "azure_c_shared_utility/urlencode.h"
 #include "azure_c_shared_utility/sastoken.h"
@@ -23,6 +22,8 @@
 
 #include "azure_uamqp_c/uamqp.h"
 
+#include "event_hub_config.h"  // Include the shared header
+
 #if _WIN32
 #include "windows.h"
 #endif
@@ -31,42 +32,9 @@
 /* The SAS token is generated based on the policy name/key */
 /* Replace the below settings with your own.*/
 
-#define UseDevelopmentEmulator 1
-#define EH_HOST "127.0.0.1"
-#define EH_KEY_NAME "RootManageSharedAccessKey"
-#define EH_KEY "SAS_KEY_VALUE"
-#define EH_NAME "eh1"
 
-#define EH_PUBLISHER "test_publisher"
-
-static const size_t msg_count = 1;
 static unsigned int sent_messages = 0;
 static bool auth = false;
-
-static void on_cbs_open_complete(void* context, CBS_OPEN_COMPLETE_RESULT open_complete_result)
-{
-    (void)context;
-    (void)open_complete_result;
-    (void)printf("CBS instance open.\r\n");
-}
-
-static void on_cbs_error(void* context)
-{
-    (void)context;
-    (void)printf("CBS error.\r\n");
-}
-
-static void on_cbs_put_token_complete(void* context, CBS_OPERATION_RESULT cbs_operation_result, unsigned int status_code, const char* status_description)
-{
-    (void)context;
-    (void)status_code;
-    (void)status_description;
-
-    if (cbs_operation_result == CBS_OPERATION_RESULT_OK)
-    {
-        auth = true;
-    }
-}
 
 static void on_message_send_complete(void* context, MESSAGE_SEND_RESULT send_result, AMQP_VALUE delivery_state)
 {
@@ -77,12 +45,9 @@ static void on_message_send_complete(void* context, MESSAGE_SEND_RESULT send_res
     sent_messages++;
 }
 
-int eh_sender(int argc, char** argv)
+int eh_sender(EventHubConfig config)
 {
     int result;
-
-    (void)argc;
-    (void)argv;
 
     if (platform_init() != 0)
     {
@@ -96,54 +61,45 @@ int eh_sender(int argc, char** argv)
         LINK_HANDLE link;
         MESSAGE_SENDER_HANDLE message_sender;
         MESSAGE_HANDLE message;
-
-        size_t last_memory_used = 0;
-
-        /* create SASL PLAIN handler */
-        SASL_MECHANISM_HANDLE sasl_mechanism_handle = saslmechanism_create(saslmssbcbs_get_interface(), NULL);
-        XIO_HANDLE tls_io;
-        XIO_HANDLE socket_io;
-        STRING_HANDLE sas_key_name;
-        STRING_HANDLE sas_key_value;
-        STRING_HANDLE resource_uri;
-        STRING_HANDLE encoded_resource_uri;
-        STRING_HANDLE sas_token;
-        BUFFER_HANDLE buffer;
-
-        // Use socketio instead of tlsio for non-TLS connections
-        SOCKETIO_CONFIG socket_io_config = { EH_HOST, 5672, NULL };
+        SASL_PLAIN_CONFIG sasl_plain_config = {  config.eh_key_name, config.eh_key, NULL };
 
         // KH - using emulators, we don't need to use TLS
-        TLSIO_CONFIG tls_io_config = { EH_HOST, 5671 };
+        TLSIO_CONFIG tls_io_config = { config.eh_host , 5671 };
+        // Use socketio instead of tlsio for non-TLS connections
+        SOCKETIO_CONFIG socket_io_config = { config.eh_host, 5672, NULL };
 
         const IO_INTERFACE_DESCRIPTION* tlsio_interface;
-        SASLCLIENTIO_CONFIG sasl_io_config;
-        time_t currentTime;
-        size_t expiry_time;
-        CBS_HANDLE cbs;
+        SASLCLIENTIO_CONFIG sasl_io_config;        
         AMQP_VALUE source;
         AMQP_VALUE target;
+
+        size_t last_memory_used = 0;
+        SASL_MECHANISM_HANDLE sasl_mechanism_handle = saslmechanism_create(saslplain_get_interface(), &sasl_plain_config);
+        XIO_HANDLE tls_io;
+        XIO_HANDLE socket_io;
+       
         unsigned char hello[] = { 'H', 'e', 'l', 'l', 'o' };
         BINARY_DATA binary_data;
 
         gballoc_init();
 
         
-        if (UseDevelopmentEmulator == 1) {
-            /* create the Socket IO for non-TLS connection */
-            const IO_INTERFACE_DESCRIPTION* socketio_interface = socketio_get_interface_description();
-            socket_io = xio_create(socketio_interface, &socket_io_config);
-
-            /* create the SASL client IO using the Socket IO */
-            sasl_io_config.underlying_io = socket_io;
-        } else {
-            // KH - using emulators, we don't need to use TLS
+        if (config.use_dev_emulator != 1) {
+             // KH - using emulators, we don't need to use TLS
             /* create the TLS IO */
             tlsio_interface = platform_get_default_tlsio();
             tls_io = xio_create(tlsio_interface, &tls_io_config);
 
             /* create the SASL client IO using the TLS IO */
             sasl_io_config.underlying_io = tls_io;
+          
+        } else {
+            /* create the Socket IO for non-TLS connection */
+            const IO_INTERFACE_DESCRIPTION* socketio_interface = socketio_get_interface_description();
+            socket_io = xio_create(socketio_interface, &socket_io_config);
+
+            /* create the SASL client IO using the Socket IO */
+            sasl_io_config.underlying_io = socket_io; 
         }
 
         
@@ -151,66 +107,22 @@ int eh_sender(int argc, char** argv)
         sasl_io = xio_create(saslclientio_get_interface_description(), &sasl_io_config);
 
         /* create the connection, session and link */
-        connection = connection_create(sasl_io, EH_HOST, "some", NULL, NULL);
+        connection = connection_create(sasl_io, config.eh_host, "some", NULL, NULL);
         session = session_create(connection, NULL, NULL);
         session_set_incoming_window(session, 2147483647);
         session_set_outgoing_window(session, 65536);
 
-        if (UseDevelopmentEmulator != 1) {
-          /* Construct a SAS token */
-          sas_key_name = STRING_construct(EH_KEY_NAME);
-
-          /* unfortunately SASToken wants an encoded key - this should be fixed at a later time */
-          buffer = BUFFER_create((unsigned char*)EH_KEY, strlen(EH_KEY));
-          sas_key_value = Azure_Base64_Encode(buffer);
-          BUFFER_delete(buffer);
-          resource_uri = STRING_construct("sb://" EH_HOST "/" EH_NAME "/publishers/" EH_PUBLISHER);
-          encoded_resource_uri = URL_EncodeString(STRING_c_str(resource_uri));
-
-          /* Make a token that expires in one hour */
-          currentTime = time(NULL);
-          expiry_time = (size_t)(difftime(currentTime, 0) + 3600);
-
-          sas_token = SASToken_Create(sas_key_value, encoded_resource_uri, sas_key_name, expiry_time);
-
-          cbs = cbs_create(session);
-          if (cbs_open_async(cbs, on_cbs_open_complete, cbs, on_cbs_error, cbs) == 0)
-          {
-              (void)cbs_put_token_async(cbs, "servicebus.windows.net:sastoken", "sb://" EH_HOST "/" EH_NAME "/publishers/" EH_PUBLISHER, STRING_c_str(sas_token), on_cbs_put_token_complete, cbs);
-
-              while (!auth)
-              {
-                  size_t current_memory_used;
-                  size_t maximum_memory_used;
-                  connection_dowork(connection);
-
-                  current_memory_used = gballoc_getCurrentMemoryUsed();
-                  maximum_memory_used = gballoc_getMaximumMemoryUsed();
-
-                  if (current_memory_used != last_memory_used)
-                  {
-                      (void)printf("Current memory usage:%lu (max:%lu)\r\n", (unsigned long)current_memory_used, (unsigned long)maximum_memory_used);
-                      last_memory_used = current_memory_used;
-                  }
-              }
-          }
-
-          STRING_delete(sas_token);
-          STRING_delete(sas_key_name);
-          STRING_delete(sas_key_value);
-          STRING_delete(resource_uri);
-          STRING_delete(encoded_resource_uri);
-        }
 
         source = messaging_create_source("ingress");
-
-        if (UseDevelopmentEmulator == 1) {
+        char target_address[256];
+        if (config.use_dev_emulator == 1) {
             // using the event hub emulator, the target should be the event hub name
-            target = messaging_create_target("amqp://" EH_HOST "/" EH_NAME "/publishers/" EH_PUBLISHER);
+            snprintf(target_address, sizeof(target_address), "amqp://%s/%s/publishers/%s", config.eh_host, config.eh_name, config.eh_publisher);
+            
         } else {
-            target = messaging_create_target("amqps://" EH_HOST "/" EH_NAME "/publishers/" EH_PUBLISHER);
+            snprintf(target_address, sizeof(target_address), "amqps://%s/%s/publishers/%s", config.eh_host, config.eh_name, config.eh_publisher);
         }
-
+        target = messaging_create_target(target_address);
         link = link_create(session, "sender-link", role_sender, source, target);
         link_set_snd_settle_mode(link, sender_settle_mode_settled);
         (void)link_set_max_message_size(link, 65536);
@@ -239,7 +151,7 @@ int eh_sender(int argc, char** argv)
             }
             else
             {
-                for (i = 0; i < msg_count; i++)
+                for (i = 0; i < config.msg_count; i++)
                 {
                     /* timeout if it takes longer than 10s */
                     (void)messagesender_send_async(message_sender, message, on_message_send_complete, message, 10000);
@@ -262,7 +174,7 @@ int eh_sender(int argc, char** argv)
                         last_memory_used = current_memory_used;
                     }
 
-                    if (sent_messages == msg_count)
+                    if (sent_messages == config.msg_count)
                     {
                         break;
                     }
@@ -276,17 +188,12 @@ int eh_sender(int argc, char** argv)
                     }
                     else
                     {
-                        (void)printf("Send %u messages in %lu ms: %.02f msgs/sec\r\n", (unsigned int)msg_count, (unsigned long)(end_time - start_time), (float)msg_count / ((float)(end_time - start_time) / 1000));
+                        (void)printf("Send %u messages in %lu ms: %.02f msgs/sec\r\n", (unsigned int)config.msg_count, (unsigned long)(end_time - start_time), (float)config.msg_count / ((float)(end_time - start_time) / 1000));
                     }
                 }
             }
 
             tickcounter_destroy(tick_counter);
-        }
-
-
-        if (UseDevelopmentEmulator != 1) {
-          cbs_destroy(cbs);
         }
 
         messagesender_destroy(message_sender);
@@ -296,7 +203,7 @@ int eh_sender(int argc, char** argv)
 
         xio_destroy(sasl_io);
 
-        if (UseDevelopmentEmulator == 1) {
+        if (config.use_dev_emulator == 1) {
             xio_destroy(socket_io);
         } else {
             xio_destroy(tls_io);

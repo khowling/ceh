@@ -4,6 +4,69 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
+        {
+            "name": "Launch Realy Hub Receive",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/cmake/ceh",
+            "args": [
+                "receive",
+                "--host", "cehtest.servicebus.windows.net",
+                "--key-name", "ceh",
+                "--key", "Ab18OPu8M7QTKZXEyv5c6vsw%2BdUOerFn%2F%2BAEhHNKUmg%3D",
+                "--name", "hub1",
+                "--consumer-group" , "\\$Default",
+                "--partition", "0"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+
+        {
+            "name": "Launch Send",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/cmake/ceh",
+            "args": ["send", "--count", "1000"],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+
         {
             "name": "Launch Receive",
             "type": "cppdbg",
