@@ -25,9 +25,9 @@ services:
     pull_policy: always
 #    volumes:
 #      - ../ehconfig.json:/Eventhubs_Emulator/ConfigFiles/Config.json:ro
-    #configs:
-    #  - source: Config.json
-    #    target: /Eventhubs_Emulator/ConfigFiles
+    configs:
+      - source: Config.json
+        target: /Eventhubs_Emulator/ConfigFiles/Config.json
     ports:
       - "5672:5672"
       - "9092:9092"
